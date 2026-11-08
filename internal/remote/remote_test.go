@@ -117,6 +117,26 @@ func (s *testSSHServer) handleSession(channel ssh.Channel, requests <-chan *ssh.
 
 	for req := range requests {
 		switch req.Type {
+		case "pty-req":
+			var payload struct {
+				Term         string
+				Columns      uint32
+				Rows         uint32
+				WidthPixels  uint32
+				HeightPixels uint32
+				Modes        string
+			}
+			if err := ssh.Unmarshal(req.Payload, &payload); err != nil {
+				_ = req.Reply(false, nil)
+				return
+			}
+			_ = req.Reply(true, nil)
+		case "shell":
+			if err := req.Reply(true, nil); err != nil {
+				return
+			}
+			s.runShell(channel)
+			return
 		case "exec":
 			var payload struct {
 				Command string
@@ -155,7 +175,15 @@ func (s *testSSHServer) handleSession(channel ssh.Channel, requests <-chan *ssh.
 }
 
 func (s *testSSHServer) runCommand(channel ssh.Channel, command string) {
-	cmd := exec.Command("/bin/sh", "-c", command)
+	s.runProcess(channel, "/bin/sh", "-c", command)
+}
+
+func (s *testSSHServer) runShell(channel ssh.Channel) {
+	s.runProcess(channel, "/bin/sh")
+}
+
+func (s *testSSHServer) runProcess(channel ssh.Channel, name string, args ...string) {
+	cmd := exec.Command(name, args...)
 	cmd.Dir = s.root
 	cmd.Stdin = channel
 	cmd.Stdout = channel
@@ -238,6 +266,32 @@ func TestExecStdin(t *testing.T) {
 	}
 	if stdout.String() != "hello stdin" {
 		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestShell(t *testing.T) {
+	server := newTestSSHServer(t)
+	client := connectTestClient(t, server)
+
+	resizes := make(chan remote.WindowSize, 1)
+	resizes <- remote.WindowSize{Width: 120, Height: 40}
+	close(resizes)
+
+	var stdout, stderr bytes.Buffer
+	err := client.Shell(context.Background(), remote.ShellOptions{
+		Stdin:  strings.NewReader("printf 'interactive-ok\\n'\nexit\n"),
+		Stdout: &stdout,
+		Stderr: &stderr,
+		Term:   "xterm-256color",
+		Width:  100,
+		Height: 30,
+		Resize: resizes,
+	})
+	if err != nil {
+		t.Fatalf("Shell() error = %v, stderr = %q", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "interactive-ok") {
+		t.Fatalf("shell stdout = %q", stdout.String())
 	}
 }
 

@@ -24,6 +24,7 @@ const usageText = `remote-host-cli - 在远程主机上执行命令并传输文�
 
 命令:
   exec <命令>                     在远程环境执行命令
+  shell                           进入远程交互式 shell（需要本地 TTY）
   upload <本地文件> <远程路径>    上传本地文件
   download <远程文件> <本地路径>  下载远程文件
   list                            列出已配置的环境
@@ -38,6 +39,7 @@ const usageText = `remote-host-cli - 在远程主机上执行命令并传输文�
 示例:
   remote-host-cli init
   remote-host-cli -e dev exec "uname -a"
+  remote-host-cli -e dev shell
   remote-host-cli -e dev upload ./app.tar.gz /opt/app/
   remote-host-cli -e dev download /var/log/app.log ./app.log
 
@@ -104,6 +106,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 0
 	case "exec":
 		err = commandExec(ctx, configPath, envName, commandArgs, stdin, stdout, stderr)
+	case "shell":
+		err = commandShell(ctx, configPath, envName, commandArgs, stdin, stdout, stderr)
 	case "upload":
 		err = commandUpload(ctx, configPath, envName, commandArgs, stdout, stderr)
 	case "download":

@@ -6,6 +6,7 @@
 
 - 配置固定保存在 `~/.remote-host-cli/config.json`，安装后可在任意目录运行。
 - `exec` 远程执行命令，实时转发标准输入、标准输出和标准错误，并透传远程退出码。
+- `shell` 进入与 `ssh` 一致的交互式终端：申请远程 PTY，支持窗口大小同步、`vim`、`top`、Ctrl-C、Ctrl-D 等。
 - `upload` / `download` 上传下载单个普通文件，自动识别目标是否为目录。
 - 支持 `~`、`~/` 远程路径，以及带空格的文件名。
 - 默认使用 `~/.ssh/known_hosts` 校验主机密钥，也支持显式关闭校验用于测试环境。
@@ -13,12 +14,13 @@
 
 ## 依赖说明
 
-Go 标准库不包含 SSH 和 SFTP 协议实现，因此项目只引入两个必要依赖：
+Go 标准库不包含 SSH、SFTP 和终端 raw 模式实现，因此项目引入三个必要依赖：
 
 | 模块 | 用途 |
 | --- | --- |
-| `golang.org/x/crypto/ssh` | SSH 连接、密码认证、主机密钥校验、命令执行 |
+| `golang.org/x/crypto/ssh` | SSH 连接、密码认证、主机密钥校验、命令执行、PTY |
 | `github.com/pkg/sftp` | SFTP 文件上传与下载 |
+| `golang.org/x/term` | 本地终端 raw 模式、尺寸读取与恢复 |
 
 其余功能（配置加载、参数解析、文件操作、流复制、信号处理、错误处理）均使用 Go 原生标准库。
 
@@ -208,7 +210,22 @@ echo "hello" | remote-host-cli -e dev exec "cat > /tmp/hello.txt"
 remote-host-cli -e dev exec 'for i in 1 2 3; do echo $i; done'
 ```
 
-`exec` 当前不分配 PTY，不适合 `vim`、`top` 等全屏交互程序；普通命令和基于标准输入的命令可以正常使用。
+`exec` 不分配 PTY，适合脚本和非交互命令；需要运行 `vim`、`top` 等全屏交互程序时请使用 `shell`。
+
+### 进入交互式 shell
+
+```bash
+remote-host-cli -e dev shell
+```
+
+进入后与直接执行 `ssh user@host` 类似：
+
+- 自动申请远程 PTY，使用远端登录 shell。
+- 本地终端切换到 raw 模式，Ctrl-C、Ctrl-D、方向键、Tab 补全等由远端处理。
+- 调整本地终端窗口大小时，远程 PTY 尺寸同步更新。
+- 在远端执行 `exit` 或按 Ctrl-D 退出，终端会自动恢复原状态。
+
+`shell` 必须在真实交互式终端中运行；通过管道或重定向调用时会报错。若需要非交互执行，请使用 `exec`。
 
 ### 上传文件
 
@@ -298,7 +315,7 @@ remote-host-cli -e test exec "hostname"
 
 | 退出码 | 含义 |
 | --- | --- |
-| 远程命令退出码 | `exec` 成功连接并执行命令，但远程命令以非零状态退出 |
+| 远程命令/shell 退出码 | `exec` 或 `shell` 成功连接，但远程进程以非零状态退出 |
 | `0` | 成功 |
 | `1` | 本地错误，例如配置错误、连接失败、文件传输失败 |
 | `2` | 命令用法错误 |
@@ -306,7 +323,7 @@ remote-host-cli -e test exec "hostname"
 
 ## 测试
 
-项目包含配置单元测试，以及使用内置 SSH/SFTP 测试服务器完成的端到端测试（命令执行、stdin、退出码、上传、下载、错误路径）：
+项目包含配置单元测试，以及使用内置 SSH/SFTP 测试服务器完成的端到端测试（命令执行、stdin、退出码、PTY 交互式 shell、上传、下载、错误路径）：
 
 ```bash
 go test ./...
@@ -319,6 +336,9 @@ go vet ./...
 .
 ├── main.go                     # CLI 参数解析与命令分发
 ├── main_test.go
+├── shell.go                    # 交互式 shell 命令与终端 raw 模式
+├── resize_signal_unix.go       # Unix SIGWINCH 窗口尺寸监听
+├── resize_signal_windows.go    # Windows 空实现
 ├── Makefile                    # 编译、安装、测试
 ├── internal/
 │   ├── config/
@@ -326,8 +346,9 @@ go vet ./...
 │   │   └── config_test.go
 │   └── remote/
 │       ├── client.go           # SSH 连接、主机密钥、命令执行
+│       ├── shell.go            # 远程 PTY 与交互式 shell
 │       ├── transfer.go         # SFTP 上传下载
-│       └── remote_test.go      # SSH/SFTP 端到端测试
+│       └── remote_test.go      # SSH/SFTP/PTY 端到端测试
 ├── bin/remote-host-cli         # make build 输出（不提交）
 ├── go.mod
 └── go.sum

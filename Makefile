@@ -45,7 +45,7 @@ vet:
 	$(GO) vet ./...
 
 fmt:
-	gofmt -w main.go main_test.go internal/config/*.go internal/remote/*.go
+	gofmt -w main.go main_test.go shell.go resize_signal_*.go internal/config/*.go internal/remote/*.go
 
 clean:
 	rm -rf bin

@@ -49,11 +49,23 @@ func TestRunUsageErrors(t *testing.T) {
 		{"upload", "only-one-argument"},
 		{"download"},
 		{"exec"},
+		{"shell", "extra"},
 	}
 	for _, args := range tests {
 		var stdout, stderr bytes.Buffer
 		if code := run(args, strings.NewReader(""), &stdout, &stderr); code != 2 {
 			t.Fatalf("run(%q) = %d, want 2; stderr = %q", args, code, stderr.String())
 		}
+	}
+}
+
+func TestRunShellRequiresTTY(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"shell"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("run(shell) = %d, want 1; stderr = %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "交互式终端") {
+		t.Fatalf("stderr = %q", stderr.String())
 	}
 }

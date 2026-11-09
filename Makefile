@@ -5,7 +5,12 @@ BIN      := bin/$(APP)
 GO       ?= go
 LDFLAGS  ?= -s -w
 
-.PHONY: all build install install-user uninstall uninstall-user test vet fmt clean
+DSH_HOME      ?= $(HOME)/.dsh
+SKILL_NAME    := remote-host-cli
+SKILL_SRC     := skills/$(SKILL_NAME)/SKILL.md
+SKILL_DEST    := $(DSH_HOME)/skills/$(SKILL_NAME)/SKILL.md
+
+.PHONY: all build install install-user uninstall uninstall-user install-skill uninstall-skill test vet fmt clean
 
 all: build
 
@@ -37,6 +42,17 @@ uninstall:
 
 uninstall-user:
 	$(MAKE) uninstall PREFIX="$(HOME)/.local" BINDIR="$(HOME)/.local/bin"
+
+# Install the agent skill into DSH: ~/.dsh/skills/remote-host-cli/SKILL.md
+install-skill:
+	install -d "$(DSH_HOME)/skills/$(SKILL_NAME)"
+	install -m 0644 "$(SKILL_SRC)" "$(SKILL_DEST)"
+	@echo "已安装 DSH skill: $(SKILL_DEST)"
+
+uninstall-skill:
+	rm -f "$(SKILL_DEST)"
+	-rmdir "$(DSH_HOME)/skills/$(SKILL_NAME)" 2>/dev/null || true
+	@echo "已移除 DSH skill: $(SKILL_DEST)"
 
 test:
 	$(GO) test ./...

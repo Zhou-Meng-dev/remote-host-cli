@@ -10,6 +10,7 @@
 - `upload` / `download` 上传下载单个普通文件，自动识别目标是否为目录。
 - 支持 `~`、`~/` 远程路径，以及带空格的文件名。
 - 默认使用 `~/.ssh/known_hosts` 校验主机密钥，也支持显式关闭校验用于测试环境。
+- 附带 DSH skill，可通过 `make install-skill` 让 DSH agent 自动使用本 CLI 操作远程环境。
 - 纯标准库实现 CLI、JSON 配置、参数解析、文件复制、信号处理等；SSH 与 SFTP 协议使用成熟第三方库。
 
 ## 依赖说明
@@ -79,6 +80,26 @@ sudo make install
 ```bash
 make uninstall-user    # 用户级安装
 sudo make uninstall    # 系统级安装
+```
+
+### 安装为 DSH skill
+
+项目包含一个 DSH skill，让 DSH agent 自动学会使用本 CLI 操作远程环境：
+
+```bash
+make install-skill
+```
+
+skill 会安装到 `~/.dsh/skills/remote-host-cli/SKILL.md`。DSH 会发现并热加载该 skill；它覆盖环境选择、远程命令、交互式 shell、文件传输、默认环境和危险操作确认。也可以使用自定义 DSH 目录：
+
+```bash
+make install-skill DSH_HOME=/path/to/.dsh
+```
+
+卸载 skill：
+
+```bash
+make uninstall-skill
 ```
 
 ### 编译但不安装
@@ -349,6 +370,9 @@ go vet ./...
 │       ├── shell.go            # 远程 PTY 与交互式 shell
 │       ├── transfer.go         # SFTP 上传下载
 │       └── remote_test.go      # SSH/SFTP/PTY 端到端测试
+├── skills/
+│   └── remote-host-cli/
+│       └── SKILL.md            # DSH skill 源文件
 ├── bin/remote-host-cli         # make build 输出（不提交）
 ├── go.mod
 └── go.sum
